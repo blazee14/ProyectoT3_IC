@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 // SVG Icons
 const CalendarIcon = () => (
@@ -31,85 +32,117 @@ const CloseIcon = () => (
   </svg>
 );
 
-const PatientDashboard = ({ patientData, onLogout }) => {
+const PatientDashboard = ({ patientData }) => {
   const [activeTab, setActiveTab] = useState('appointments');
   const [showSuccess, setShowSuccess] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [appointmentData, setAppointmentData] = useState({
-    date: '',
-    doctor: '',
-    reason: ''
-  });
+  const [appointmentData, setAppointmentData] = useState({ date: '', doctor: '', reason: '' });
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [paciente, setPaciente] = useState(null);
+  const [bookedAppointments, setBookedAppointments] = useState([]);
 
-  // Datos de ejemplo de doctores con colegiatura
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const storedPaciente = localStorage.getItem('paciente');
+    if (storedPaciente) {
+      setPaciente(JSON.parse(storedPaciente));
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('paciente');
+    navigate('/login');
+  };
+
   const doctors = [
     { id: 1, name: 'Dr. Roberto Sánchez', specialty: 'Cardiología', license: 'CMP 12345', available: true },
     { id: 2, name: 'Dra. Ana Martínez', specialty: 'Pediatría', license: 'CMP 54321', available: true },
     { id: 3, name: 'Dr. Carlos López', specialty: 'Ortopedia', license: 'CMP 67890', available: false },
   ];
 
-  // Obtener citas de localStorage o usar datos por defecto
-  const [bookedAppointments, setBookedAppointments] = useState(() => {
-    const savedAppointments = localStorage.getItem('patientAppointments');
-    return savedAppointments ? JSON.parse(savedAppointments) : [
-      { 
-        id: 1, 
-        date: '2023-07-10', 
-        doctor: 'Dr. Roberto Sánchez', 
-        doctorId: 1,
-        reason: 'Control presión arterial', 
-        status: 'Confirmada' 
-      },
-      { 
-        id: 2, 
-        date: '2023-07-15', 
-        doctor: 'Dra. Ana Martínez', 
-        doctorId: 2,
-        reason: 'Consulta general', 
-        status: 'Pendiente' 
-      }
-    ];
-  });
-
-  // Guardar citas en localStorage cuando cambian
   useEffect(() => {
-    localStorage.setItem('patientAppointments', JSON.stringify(bookedAppointments));
-  }, [bookedAppointments]);
+    const fetchAppointments = async () => {
+      try {
+        const response = await fetch(`http://localhost:5000/api/citas/paciente/${patientData.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          const citas = data.map(cita => ({
+            id: cita.id,
+            date: cita.fecha,
+            doctor: cita.nombre_medico,
+            doctorId: cita.id_medico,
+            reason: cita.motivo,
+            status: cita.estado === 'A' ? 'Pendiente' : (cita.estado === 'C' ? 'Cancelada' : 'Confirmada')
+          }));
+          setBookedAppointments(citas);
+        } else {
+          console.error('Error al cargar citas del backend.');
+        }
+      } catch (error) {
+        console.error('Error de red al obtener citas:', error);
+      }
+    };
+
+    fetchAppointments();
+  }, [patientData.id]);
 
   const handleAppointmentChange = (e) => {
     const { name, value } = e.target;
     setAppointmentData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleBookAppointment = (e) => {
+  const handleBookAppointment = async (e) => {
     e.preventDefault();
-    if (!appointmentData.date || !appointmentData.doctor) {
-      return;
-    }
+    if (!appointmentData.date || !appointmentData.doctor) return;
 
     const selectedDoctor = doctors.find(d => d.id.toString() === appointmentData.doctor);
-    const newAppointment = {
-      id: Date.now(),
-      date: appointmentData.date,
-      doctor: selectedDoctor.name,
-      doctorId: selectedDoctor.id,
-      reason: appointmentData.reason || 'Consulta médica',
-      status: 'Pendiente'
+
+    const citaPayload = {
+      idPaciente: patientData.id,
+      idMedico: selectedDoctor.id,
+      idClinica: 1,
+      fecha: appointmentData.date,
+      estado: 'A',
+      motivo: appointmentData.reason,
+      numero: Math.floor(Math.random() * 9000) + 1000
     };
 
-    const updatedAppointments = [...bookedAppointments, newAppointment];
-    setBookedAppointments(updatedAppointments);
-    
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 5000);
-    setAppointmentData({
-      date: '',
-      doctor: '',
-      reason: ''
-    });
+    try {
+      const response = await fetch('http://localhost:5000/api/citas', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(citaPayload)
+      });
+
+      if (response.ok) {
+        const responseData = await response.json();
+
+        const nuevaCita = {
+          id: responseData.id,
+          date: appointmentData.date,
+          doctor: selectedDoctor.name,
+          doctorId: selectedDoctor.id,
+          reason: appointmentData.reason,
+          status: 'Pendiente'
+        };
+
+        setBookedAppointments(prev => [...prev, nuevaCita]);
+
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 5000);
+        setAppointmentData({ date: '', doctor: '', reason: '' });
+      } else {
+        alert('Error al registrar la cita.');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Error de conexión con el servidor.');
+    }
   };
 
   const handleViewDetails = (appointment) => {
@@ -124,11 +157,11 @@ const PatientDashboard = ({ patientData, onLogout }) => {
 
   const confirmCancelAppointment = () => {
     if (!selectedAppointment) return;
-    
+
     const updatedAppointments = bookedAppointments.map(app => 
       app.id === selectedAppointment.id ? { ...app, status: 'Cancelada' } : app
     );
-    
+
     setBookedAppointments(updatedAppointments);
     setShowCancelModal(false);
     setSelectedAppointment(null);
@@ -137,6 +170,7 @@ const PatientDashboard = ({ patientData, onLogout }) => {
   const getDoctorInfo = (doctorId) => {
     return doctors.find(d => d.id === doctorId) || {};
   };
+
 
   return (
     <div className="min-h-screen bg-gray-50 relative">
@@ -151,7 +185,8 @@ const PatientDashboard = ({ patientData, onLogout }) => {
                 </svg>
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-800">{patientData?.name || 'Paciente'}</h1>
+                <h1 className="text-2xl font-bold text-gray-800">
+                {paciente ? `${paciente.nombres} ${paciente.apellidos}` : 'Paciente'}</h1>
                 <p className="text-gray-600">Bienvenido a su portal médico</p>
               </div>
             </div>
@@ -386,12 +421,13 @@ const PatientDashboard = ({ patientData, onLogout }) => {
               >
                 Cancelar
               </button>
-              <button
-                onClick={onLogout}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-              >
-                Cerrar Sesión
+             <button
+              onClick={handleLogout}
+               className="text-red-600 hover:underline text-sm ml-4"
+>
+               Cerrar sesión
               </button>
+
             </div>
           </div>
         </div>

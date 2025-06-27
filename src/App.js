@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+
 import LoginForm from './components/Auth/LoginForm';
 import PatientLogin from './components/Auth/PatientLogin';
+import RegisterPaciente from './components/Auth/RegisterPaciente';
 import Navbar from './components/Layout/Navbar';
 import DoctorDashboard from './components/Doctor/Dashboard';
 import AdminDashboard from './components/Admin/Dashboard';
@@ -16,46 +19,84 @@ const App = () => {
     if (storedUserType) {
       setUserType(storedUserType);
     }
+
+    const storedPaciente = localStorage.getItem('paciente');
+    if (storedPaciente) {
+      setPatientData(JSON.parse(storedPaciente));
+      setIsPatient(true);
+    }
   }, []);
 
-  const handlePatientLogin = (credentials) => {
-    // Simulación de autenticación
-    setPatientData({
-      id: 1,
-      name: 'Juan Pérez',
-      username: credentials.username
-    });
-    setIsPatient(true);
-  };
+  const handlePatientLogin = (data) => {
+  setPatientData(data);
+  setIsPatient(true);
+  localStorage.setItem('paciente', JSON.stringify(data));
+};
+
 
   const handlePatientLogout = () => {
     setIsPatient(false);
     setPatientData(null);
+    localStorage.removeItem('paciente');
   };
 
-  if (isPatient) {
-    return <PatientDashboard patientData={patientData} onLogout={handlePatientLogout} />;
-  }
-
   return (
-    <div className="min-h-screen bg-gray-100">
-      {userType ? (
-        <>
-          <Navbar />
-          {userType === 'doctor' ? <DoctorDashboard /> : <AdminDashboard />}
-        </>
-      ) : (
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="flex flex-col md:flex-row gap-8 p-4">
-            <LoginForm />
-            <PatientLogin onLogin={handlePatientLogin} />
-          </div>
-        </div>
-      )}
-    </div>
+    <Router>
+      <div className="min-h-screen bg-gray-100">
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <div className="flex items-center justify-center min-h-screen">
+                <div className="flex flex-col md:flex-row gap-8 p-4">
+                  <LoginForm />
+                  <PatientLogin onLogin={handlePatientLogin} />
+                </div>
+              </div>
+            }
+          />
+          <Route path="/registro" element={<RegisterPaciente />} />
+          <Route
+            path="/dashboard"
+            element={
+              isPatient ? (
+                <PatientDashboard patientData={patientData} onLogout={handlePatientLogout} />
+              ) : (
+                <Navigate to="/" />
+              )
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              userType === 'admin' ? (
+                <>
+                  <Navbar />
+                  <AdminDashboard />
+                </>
+              ) : (
+                <Navigate to="/" />
+              )
+            }
+          />
+          <Route
+            path="/doctor"
+            element={
+              userType === 'doctor' ? (
+                <>
+                  <Navbar />
+                  <DoctorDashboard />
+                </>
+              ) : (
+                <Navigate to="/" />
+              )
+            }
+          />
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+      </div>
+    </Router>
   );
 };
 
 export default App;
-
-// DONE

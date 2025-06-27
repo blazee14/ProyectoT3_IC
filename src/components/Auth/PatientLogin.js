@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+
 
 const PatientLogin = ({ onLogin }) => {
   const [credentials, setCredentials] = useState({
@@ -6,6 +8,7 @@ const PatientLogin = ({ onLogin }) => {
     password: ''
   });
   const [error, setError] = useState('');
+  const navigate = useNavigate(); // <-- esta línea falta
   const [validation, setValidation] = useState({
     usernameValid: null,
     passwordValid: null
@@ -57,96 +60,138 @@ const PatientLogin = ({ onLogin }) => {
     }));
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!validation.usernameValid || !validation.passwordValid) {
-      setError('Por favor completa correctamente todos los campos');
-      return;
+  const handleSubmit = async (e) => {
+  e.preventDefault();
+
+  if (!validation.usernameValid || !validation.passwordValid) {
+    setError('Por favor completa correctamente todos los campos');
+    return;
+  }
+
+  try {
+    const response = await fetch('http://localhost:5000/api/login/paciente', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(credentials)
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+
+      // 🔹 Guardar los datos del paciente en localStorage
+      localStorage.setItem('paciente', JSON.stringify(data));
+
+      onLogin(data); 
+      navigate('/dashboard'); 
+
+
+    } else {
+      const resText = await response.text();
+      setError('Credenciales inválidas: ' + resText);
     }
-    onLogin(credentials);
-  };
+  } catch (error) {
+    setError('Error al conectar con el servidor');
+    console.error(error);
+  }
+};
 
   return (
-    <div className="max-w-md mx-auto bg-white rounded-xl shadow-lg overflow-hidden p-8">
-      <h2 className="text-2xl font-bold text-blue-600 mb-6 text-center">
-        Acceso Pacientes
-      </h2>
-      
-      {error && (
-        <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg flex items-center">
-          <CheckIcon valid={false} />
-          <span className="ml-2">{error}</span>
-        </div>
-      )}
+  <div className="max-w-md mx-auto bg-white rounded-xl shadow-lg overflow-hidden p-8">
+    <h2 className="text-2xl font-bold text-blue-600 mb-6 text-center">
+      Acceso Pacientes
+    </h2>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-gray-700 mb-2 flex items-center">
-            <UserIcon />
-            Usuario
-            {validation.usernameValid !== null && (
-              <CheckIcon valid={validation.usernameValid} />
-            )}
-          </label>
-          <input
-            type="text"
-            name="username"
-            value={credentials.username}
-            onChange={handleChange}
-            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-              validation.usernameValid === false ? 'border-red-500 focus:ring-red-200' : 
-              validation.usernameValid ? 'border-green-500 focus:ring-green-200' : 
-              'border-gray-300 focus:ring-blue-200'
-            }`}
-            placeholder="Tu nombre de usuario"
-          />
-          {validation.usernameValid === false && (
-            <p className="text-xs text-red-500 mt-1">Mínimo 5 caracteres</p>
-          )}
-        </div>
-
-        <div>
-          <label className="block text-gray-700 mb-2 flex items-center">
-            <LockIcon />
-            Contraseña
-            {validation.passwordValid !== null && (
-              <CheckIcon valid={validation.passwordValid} />
-            )}
-          </label>
-          <input
-            type="password"
-            name="password"
-            value={credentials.password}
-            onChange={handleChange}
-            className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-              validation.passwordValid === false ? 'border-red-500 focus:ring-red-200' : 
-              validation.passwordValid ? 'border-green-500 focus:ring-green-200' : 
-              'border-gray-300 focus:ring-blue-200'
-            }`}
-            placeholder="Tu contraseña"
-          />
-          {validation.passwordValid === false && (
-            <p className="text-xs text-red-500 mt-1">Mínimo 6 caracteres</p>
-          )}
-        </div>
-
-        <button
-          type="submit"
-          className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-200"
-        >
-          <LockIcon />
-          Ingresar
-        </button>
-      </form>
-
-      <div className="mt-4 text-center">
-        <button className="text-blue-600 hover:underline text-sm">
-          ¿Olvidaste tu contraseña?
-        </button>
+    {error && (
+      <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg flex items-center">
+        <CheckIcon valid={false} />
+        <span className="ml-2">{error}</span>
       </div>
+    )}
+
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-gray-700 mb-2 flex items-center">
+          <UserIcon />
+          Usuario
+          {validation.usernameValid !== null && (
+            <CheckIcon valid={validation.usernameValid} />
+          )}
+        </label>
+        <input
+          type="text"
+          name="username"
+          value={credentials.username}
+          onChange={handleChange}
+          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+            validation.usernameValid === false
+              ? 'border-red-500 focus:ring-red-200'
+              : validation.usernameValid
+              ? 'border-green-500 focus:ring-green-200'
+              : 'border-gray-300 focus:ring-blue-200'
+          }`}
+          placeholder="Tu nombre de usuario"
+        />
+        {validation.usernameValid === false && (
+          <p className="text-xs text-red-500 mt-1">Mínimo 5 caracteres</p>
+        )}
+      </div>
+
+      <div>
+        <label className="block text-gray-700 mb-2 flex items-center">
+          <LockIcon />
+          Contraseña
+          {validation.passwordValid !== null && (
+            <CheckIcon valid={validation.passwordValid} />
+          )}
+        </label>
+        <input
+          type="password"
+          name="password"
+          value={credentials.password}
+          onChange={handleChange}
+          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+            validation.passwordValid === false
+              ? 'border-red-500 focus:ring-red-200'
+              : validation.passwordValid
+              ? 'border-green-500 focus:ring-green-200'
+              : 'border-gray-300 focus:ring-blue-200'
+          }`}
+          placeholder="Tu contraseña"
+        />
+        {validation.passwordValid === false && (
+          <p className="text-xs text-red-500 mt-1">Mínimo 6 caracteres</p>
+        )}
+      </div>
+
+      <button
+        type="submit"
+        className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-200 flex items-center justify-center gap-2"
+      >
+        <LockIcon />
+        Ingresar
+      </button>
+    </form>
+
+    {/* Botón Crear cuenta con separación y centrado */}
+    <div className="mt-4 flex justify-center">
+      <a
+        href="/registro"
+        className="w-full text-center bg-blue-100 hover:bg-blue-200 text-blue-800 font-medium py-2 px-4 rounded-lg shadow"
+      >
+        Crear cuenta
+      </a>
     </div>
-  );
-};
+
+    {/* Enlace de olvidaste tu contraseña */}
+    <div className="mt-4 text-center">
+      <button className="text-blue-600 hover:underline text-sm">
+        ¿Olvidaste tu contraseña?
+      </button>
+    </div>
+  </div>
+);
+}
+
 
 export default PatientLogin;
 
